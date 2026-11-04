@@ -1,10 +1,13 @@
 local _, ns = ...
 
+local L = ns.L
+
 local RewardTypes = {}
 RewardTypes.Predefined = {
 	{ i = 0, name = WORLD_QUEST_REWARD_FILTERS_GOLD, currency = 0 },
 	{ i = 1, name = WORLD_QUEST_REWARD_FILTERS_EQUIPMENT, item = 0 },
 	{ i = 2, name = WORLD_QUEST_REWARD_FILTERS_ANIMA, currency = 1813 },
+	{ i = 3, name = L["rewards_special_assignment"], tag = Enum.QuestTagType.Capstone },
 }
 
 function RewardTypes:Reset()
@@ -19,7 +22,7 @@ function RewardTypes:Reset()
 		table.insert(self, rewardType)
 
 		local objectID = rewardType.item or rewardType.currency
-		if objectID ~= 0 then
+		if objectID and objectID ~= 0 then
 			self:CacheByIndex(objectID, i)
 		end
 	end
@@ -65,6 +68,10 @@ function RewardTypes:UpdateRewardType(rewards)
 
 	for _, currency in ipairs(rewards.currencies or {}) do
 		rewardType = bit.bor(rewardType, 2 ^ self:GetOrAddRewardType(nil, currency[1]))
+	end
+
+	if rewards.specialAssignment then
+		rewardType = bit.bor(rewardType, 2 ^ self.Predefined[4].i)
 	end
 
 	self.rewardsCache[rewards] = rewardType
@@ -135,6 +142,8 @@ function RewardTypes:GetAll(excludeAnima)
 		local key
 		if rewardType.currency ~= nil then
 			key = "c:" .. rewardType.currency
+		elseif rewardType.tag ~= nil then
+			key = "t:" .. rewardType.tag
 		else
 			key = "i:" .. rewardType.item
 		end

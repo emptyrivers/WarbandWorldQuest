@@ -17,7 +17,13 @@ function QuestRewards:Create(questID, ineligible, locked)
 		return o
 	end
 
-	if ineligible or o:Update(questID) then
+	if ineligible then
+		return o
+	end
+
+	o.specialAssignment = (C_QuestLog.GetQuestTagInfo(questID) or {}).worldQuestType == Enum.QuestTagType.Capstone or nil
+
+	if o:Update(questID) then
 		return o
 	end
 end
@@ -26,9 +32,11 @@ function QuestRewards:Aggregate(rewardsList)
 	local money = 0
 	local currencies = {}
 	local items = {}
+	local specialAssignment
 
 	for _, o in pairs(rewardsList) do
 		money = (o.money or 0) + money
+		specialAssignment = specialAssignment or o.specialAssignment
 
 		for _, currency in ipairs(o.currencies or {}) do
 			local currencyID, amount = unpack(currency)
@@ -43,7 +51,7 @@ function QuestRewards:Aggregate(rewardsList)
 		end
 	end
 
-	local aggregated = { money = money, items = {}, currencies = {} }
+	local aggregated = { money = money, items = {}, currencies = {}, specialAssignment = specialAssignment }
 	for ID, amount in pairs(items) do
 		table.insert(aggregated.items, { ID, amount })
 	end

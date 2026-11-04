@@ -94,7 +94,10 @@ local function EstimateLockedRewards(rewards)
 		return rewards
 	end
 
-	local estimate = setmetatable({ money = template.money, currencies = template.currencies, items = template.items }, QuestRewards)
+	local estimate = setmetatable(
+		{ money = template.money, currencies = template.currencies, items = template.items, specialAssignment = template.specialAssignment },
+		QuestRewards
+	)
 	local estimated = {}
 
 	for character, reward in pairs(rewards) do
