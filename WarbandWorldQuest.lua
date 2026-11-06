@@ -135,6 +135,30 @@ function WarbandWorldQuest:GetAutoTrackRewards(quest)
 	return rewards
 end
 
+function WarbandWorldQuest:GetFilteredQuests()
+	local candidates = {}
+	local quests = {}
+
+	-- reward types are only registered once a reward is inspected, so inspect all candidates before generating the mask
+	for _, quest in ipairs(WorldQuestList:GetAllQuests()) do
+		local rewards = self:GetAutoTrackRewards(quest)
+		if rewards then
+			rewards:GetRewardType()
+			candidates[quest] = rewards
+		end
+	end
+
+	local mask = QuestRewards.RewardTypes:GenerateMask(Settings:Get("reward_type_filters"))
+
+	for quest, rewards in pairs(candidates) do
+		if rewards:PassRewardTypeFilters(mask) then
+			quests[quest.ID] = quest
+		end
+	end
+
+	return quests
+end
+
 function WarbandWorldQuest:UpdateAutoTracking()
 	if self.character == nil then
 		return
@@ -143,27 +167,15 @@ function WarbandWorldQuest:UpdateAutoTracking()
 	self.character.autoTracked = self.character.autoTracked or {}
 
 	local autoTracked = self.character.autoTracked
-	local enabled = Settings:Get("log_auto_track_filtered")
-	local candidates = {}
+	local filteredQuests = Settings:Get("log_auto_track_filtered") and self:GetFilteredQuests() or {}
 	local activeQuests = {}
-
-	-- reward types are only registered once a reward is inspected, so inspect all candidates before generating the mask
-	for _, quest in ipairs(WorldQuestList:GetAllQuests()) do
-		local rewards = enabled and self:GetAutoTrackRewards(quest)
-		if rewards then
-			rewards:GetRewardType()
-			candidates[quest.ID] = rewards
-		end
-	end
-
-	local mask = QuestRewards.RewardTypes:GenerateMask(Settings:Get("reward_type_filters"))
 
 	for _, quest in ipairs(WorldQuestList:GetAllQuests()) do
 		activeQuests[quest.ID] = true
 
 		if quest.tracked == nil then
 			local isManual = C_QuestLog.GetQuestWatchType(quest.ID) == Enum.QuestWatchType.Manual
-			local shouldTrack = candidates[quest.ID] ~= nil and candidates[quest.ID]:PassRewardTypeFilters(mask)
+			local shouldTrack = filteredQuests[quest.ID] ~= nil
 
 			if shouldTrack and not isManual then
 				autoTracked[quest.ID] = true
@@ -181,6 +193,60 @@ function WarbandWorldQuest:UpdateAutoTracking()
 		if not activeQuests[questID] then
 			autoTracked[questID] = nil
 		end
+	end
+end
+
+local function GetPlayerContinentPosition()
+	local mapID = C_Map.GetBestMapForUnit("player")
+	local info = mapID and C_Map.GetMapInfo(mapID)
+
+	while info and info.mapType > Enum.UIMapType.Continent do
+		info = C_Map.GetMapInfo(info.parentMapID)
+	end
+
+	if info and info.mapType == Enum.UIMapType.Continent then
+		local position = C_Map.GetPlayerMapPosition(info.mapID, "player")
+		if position then
+			return info.mapID, position:GetXY()
+		end
+	end
+end
+
+function WarbandWorldQuest:TrackNextQuest()
+	if not Settings:Get("log_track_next_filtered") then
+		return
+	end
+
+	local numTracked = 0
+	for i = 1, C_QuestLog.GetNumWorldQuestWatches() do
+		local questID = C_QuestLog.GetQuestIDForWorldQuestWatchIndex(i)
+		if questID and not C_QuestLog.IsQuestFlaggedCompleted(questID) then
+			numTracked = numTracked + 1
+		end
+	end
+
+	-- the objective tracker only shows 5 world quests
+	if numTracked >= 5 then
+		return
+	end
+
+	local mapID, x, y = GetPlayerContinentPosition()
+	local nextQuest, nextDistance
+
+	for questID, quest in pairs(self:GetFilteredQuests()) do
+		if quest.tracked ~= false and C_QuestLog.GetQuestWatchType(questID) == nil then
+			local position = mapID and quest:GetPositionOnMap(mapID) or {}
+			local distance = #position > 0 and (position[1] - x) ^ 2 + (position[2] - y) ^ 2 or math.huge
+
+			if nextQuest == nil or distance < nextDistance or (distance == nextDistance and quest.resetTime < nextQuest.resetTime) then
+				nextQuest, nextDistance = quest, distance
+			end
+		end
+	end
+
+	if nextQuest then
+		Util:Debug("Tracking next quest", nextQuest.ID, nextQuest:GetName())
+		nextQuest:SetTracked(true)
 	end
 end
 
@@ -295,6 +361,12 @@ do
 	end)
 
 	WarbandWorldQuest:RegisterEvent("QUEST_TURNED_IN", function(event, questID, xpReward, moneyReward)
+		local quest = WorldQuestList:GetQuest(questID)
+		local autoTracked = WarbandWorldQuest.character and WarbandWorldQuest.character.autoTracked or {}
+		if quest and (quest.tracked or autoTracked[questID] or quest:IsTracked()) then
+			C_Timer.After(1, GenerateClosure(WarbandWorldQuest.TrackNextQuest, WarbandWorldQuest))
+		end
+
 		WarbandWorldQuest:SetRewardsClaimed(questID)
 		WarbandWorldQuest:QueueLockedQuestsCheck()
 	end)
@@ -372,6 +444,7 @@ do
 			["log_section_completed_shown"] = { enabled = true, option = "CURRENT" },
 			["log_all_quests_shown"] = false,
 			["log_auto_track_filtered"] = false,
+			["log_track_next_filtered"] = false,
 			["log_time_left_shown"] = true,
 			["log_warband_rewards_shown"] = { enabled = true, option = "NOT_COLLECTED" },
 			["log_progress_shown"] = { enabled = true, option = "CLAIMED" },

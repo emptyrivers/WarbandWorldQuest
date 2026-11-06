@@ -34,6 +34,9 @@ L["settings_log_all_quests_shown_tooltip"] = "Display quests from all scanning m
 L["settings_log_auto_track_filtered_text"] = "Auto-Track Filtered Quests"
 L["settings_log_auto_track_filtered_tooltip"] =
 	"Track world quests whose rewards for the current character match the reward filters, and untrack them when they stop matching|n|nQuests you track or untrack yourself are never changed, and an untracked quest stays untracked until it expires"
+L["settings_log_track_next_filtered_text"] = "Track Next Filtered Quest"
+L["settings_log_track_next_filtered_tooltip"] =
+	"When you turn in a tracked world quest, track the nearest quest whose rewards match the reward filters if the objective tracker has room|n|nQuests you untracked yourself are skipped"
 L["settings_log_default_tab_text"] = "Default Tab"
 L["settings_log_default_tab_tooltip"] = "Set %s as the default tab, it opens automatically when opening the World Map for the first time after logging in"
 L["settings_log_section_fields"] = "Quest Info Fields"

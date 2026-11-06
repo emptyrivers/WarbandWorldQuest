@@ -118,6 +118,14 @@ function WarbandWorldQuestSettingsButtonMixin:Update(force)
 				L["settings_log_auto_track_filtered_tooltip"]
 			)
 
+			Settings:CreateCheckboxMenu(
+				"log_track_next_filtered",
+				logMenu,
+				L["settings_log_track_next_filtered_text"],
+				nil,
+				L["settings_log_track_next_filtered_tooltip"]
+			)
+
 			logMenu:CreateDivider()
 			logMenu:CreateTitle(L["settings_log_section_fields"])
 
