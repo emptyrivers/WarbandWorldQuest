@@ -74,6 +74,7 @@ function WarbandWorldQuest:Init()
 	Settings:RegisterCallback("log_auto_track_filtered", self.UpdateAutoTracking, self)
 	Settings:RegisterCallback("reward_type_filters", self.UpdateAutoTracking, self)
 	Settings:RegisterCallback("log_sort_order", self.UpdateAutoTracking, self)
+	Settings:RegisterCallback("zen_mode", self.UpdateZenMode, self)
 end
 
 function WarbandWorldQuest:RemoveQuestRewardsFromAllCharacters(quest)
@@ -115,6 +116,10 @@ function WarbandWorldQuest:Update(isNewScanSession)
 	if changed then
 		self.dataProvider:SetShouldPopulateData(true)
 		self:UpdateAutoTracking()
+
+		if (C_SuperTrack.GetSuperTrackedQuestID() or 0) == 0 then
+			self:FocusNextQuest()
+		end
 	end
 end
 
@@ -244,6 +249,39 @@ function WarbandWorldQuest:TrackNextQuest()
 	end
 end
 
+function WarbandWorldQuest:FocusNextQuest()
+	if not Settings:Get("zen_mode") then
+		return
+	end
+
+	for _, quest in ipairs(self:GetFilteredQuests()) do
+		if quest.tracked ~= false then
+			Util:Debug("Focusing next quest", quest.ID, quest:GetName())
+
+			if C_QuestLog.GetQuestWatchType(quest.ID) ~= Enum.QuestWatchType.Manual then
+				QuestUtil.TrackWorldQuest(quest.ID, Enum.QuestWatchType.Automatic)
+			end
+
+			C_SuperTrack.SetSuperTrackedQuestID(quest.ID)
+			self.zenQuestID = quest.ID
+			return
+		end
+	end
+end
+
+function WarbandWorldQuest:UpdateZenMode(enabled)
+	if enabled then
+		self:FocusNextQuest()
+		return
+	end
+
+	if self.zenQuestID and C_SuperTrack.GetSuperTrackedQuestID() == self.zenQuestID then
+		C_SuperTrack.SetSuperTrackedQuestID(0)
+	end
+
+	self.zenQuestID = nil
+end
+
 function WarbandWorldQuest:QueueLockedQuestsCheck()
 	if self.lockedQuestsCheckPending or self.dataProvider == nil then
 		return
@@ -308,9 +346,13 @@ function WarbandWorldQuest:ExecuteChatCommands(command)
 		Util.debug = self.db.debug
 		print("Debug Mode:", self.db.debug)
 		return
+	elseif command == "zen" then
+		Settings:Toggle("zen_mode")
+		print("Zen Mode:", Settings:Get("zen_mode"))
+		return
 	end
 
-	print("Usage: |n/wwq debug - Turn on/off debugging mode")
+	print("Usage: |n/wwq debug - Turn on/off debugging mode|n/wwq zen - Turn on/off Zen Mode")
 end
 
 do
@@ -357,10 +399,19 @@ do
 	WarbandWorldQuest:RegisterEvent("QUEST_TURNED_IN", function(event, questID, xpReward, moneyReward)
 		local quest = WorldQuestList:GetQuest(questID)
 		local autoTracked = WarbandWorldQuest.character and WarbandWorldQuest.character.autoTracked or {}
-		if quest and (quest.tracked or autoTracked[questID] or quest:IsTracked()) then
+		if quest then
+			local wasTracked = quest.tracked or autoTracked[questID] or quest:IsTracked()
+
 			C_Timer.After(1, function()
-				WarbandWorldQuest:UpdateAutoTracking()
-				WarbandWorldQuest:TrackNextQuest()
+				if wasTracked then
+					WarbandWorldQuest:UpdateAutoTracking()
+					WarbandWorldQuest:TrackNextQuest()
+				end
+
+				local superTrackedID = C_SuperTrack.GetSuperTrackedQuestID()
+				if (superTrackedID or 0) == 0 or superTrackedID == questID or questID == WarbandWorldQuest.zenQuestID then
+					WarbandWorldQuest:FocusNextQuest()
+				end
 			end)
 		end
 
@@ -442,6 +493,7 @@ do
 			["log_all_quests_shown"] = false,
 			["log_sort_order"] = "TIME_LEFT",
 			["log_active_current_character_only"] = false,
+			["zen_mode"] = false,
 			["log_auto_track_filtered"] = false,
 			["log_track_next_filtered"] = false,
 			["log_time_left_shown"] = true,

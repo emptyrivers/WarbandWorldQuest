@@ -16,6 +16,12 @@ L["characters_tooltip_last_reset_time"] = "Last World Quests Reset Time: |cnWHIT
 
 L["warmode_tooltip_instruction"] = "Click to %s War Mode button"
 
+L["zen_mode_text"] = "Zen"
+L["zen_mode_tooltip_title"] = "Zen Mode"
+L["zen_mode_tooltip_description"] =
+	"Automatically focus the first quest in the list whose rewards match the reward filters, and the next one after you turn it in, so you can just follow the focus arrow|n|nToggle it anywhere with |cnWHITE_FONT_COLOR:/wwq zen|r"
+L["zen_mode_tooltip_instruction"] = "Click to toggle Zen Mode"
+
 L["settings_pins_section_all"] = "Applied to All Pins"
 L["settings_pins_section_filtered"] = "Pins of Filtered Quests Only"
 L["settings_pins_progress_label_shown_text"] = "Warband Progress Label"

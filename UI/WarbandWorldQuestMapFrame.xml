@@ -243,6 +243,26 @@
 					<OnEvent method="OnEvent" />
 				</Scripts>
 			</DropdownButton>
+			<Button parentKey="ZenModeButton" mixin="WarbandWorldQuestZenModeButtonMixin">
+				<Size x="0" y="24" />
+				<ButtonText parentKey="ButtonText" nonspacewrap="true" justifyH="RIGHT">
+					<Anchors>
+						<Anchor point="RIGHT" x="-8" />
+					</Anchors>
+				</ButtonText>
+				<HighlightTexture atlas="questlog-quest-glow-yellow" alphaMode="ADD" />
+				<NormalFont style="GameFontDisableSmall" />
+				<HighlightFont style="GameFontHighlightSmall" />
+				<Anchors>
+					<Anchor point="BOTTOMRIGHT" relativeKey="$parent.WarmodeButton" relativePoint="BOTTOMLEFT" />
+				</Anchors>
+				<Scripts>
+					<OnLoad method="OnLoad" />
+					<OnEnter method="OnEnter" />
+					<OnLeave method="OnLeave" />
+					<OnClick method="OnClick" />
+				</Scripts>
+			</Button>
 		</Frames>
 		<Scripts>
 			<OnLoad method="OnLoad" />

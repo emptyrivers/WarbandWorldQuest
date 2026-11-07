@@ -166,6 +166,49 @@ function WarbandWorldQuestWarmodeButtonMixin:SetWarmodeButtonShown(show)
 	end
 end
 
+WarbandWorldQuestZenModeButtonMixin = {}
+
+function WarbandWorldQuestZenModeButtonMixin:OnLoad()
+	Settings:InvokeAndRegisterCallback("zen_mode", self.Update, self)
+end
+
+function WarbandWorldQuestZenModeButtonMixin:OnEnter()
+	local tooltip = GetAppropriateTooltip()
+
+	tooltip:SetOwner(self, "ANCHOR_BOTTOM")
+	GameTooltip_SetTitle(tooltip, L["zen_mode_tooltip_title"])
+	tooltip:AddLine(
+		Settings:Get("zen_mode") and GREEN_FONT_COLOR:WrapTextInColorCode(VIDEO_OPTIONS_ENABLED) or RED_FONT_COLOR:WrapTextInColorCode(VIDEO_OPTIONS_DISABLED)
+	)
+
+	tooltip:AddLine(" ")
+	GameTooltip_AddNormalLine(tooltip, L["zen_mode_tooltip_description"])
+
+	tooltip:AddLine(" ")
+	GameTooltip_AddInstructionLine(tooltip, L["zen_mode_tooltip_instruction"])
+
+	tooltip:Show()
+end
+
+function WarbandWorldQuestZenModeButtonMixin:OnLeave()
+	GetAppropriateTooltip():Hide()
+end
+
+function WarbandWorldQuestZenModeButtonMixin:OnClick()
+	PlaySound(Settings:Get("zen_mode") and SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_OFF or SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+	Settings:Toggle("zen_mode")
+	self:OnEnter()
+end
+
+function WarbandWorldQuestZenModeButtonMixin:Update()
+	local enabled = Settings:Get("zen_mode")
+
+	self.ButtonText:SetFormattedText("%s%s", CreateAtlasMarkup(enabled and "Waypoint-MapPin-Tracked" or "Waypoint-MapPin-Untracked", 18, 18), L["zen_mode_text"])
+	self.ButtonText:SetTextColor((enabled and GREEN_FONT_COLOR or DISABLED_FONT_COLOR):GetRGB())
+
+	self:SetWidth(self.ButtonText:GetUnboundedStringWidth())
+end
+
 WarbandWorldQuestCharactersButtonMixin = {}
 
 function WarbandWorldQuestCharactersButtonMixin:OnLoad()
