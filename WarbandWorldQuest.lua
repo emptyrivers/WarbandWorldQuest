@@ -73,6 +73,7 @@ function WarbandWorldQuest:Init()
 	Settings:RegisterCallback("maps_to_scan", self.Update, self, true)
 	Settings:RegisterCallback("log_auto_track_filtered", self.UpdateAutoTracking, self)
 	Settings:RegisterCallback("reward_type_filters", self.UpdateAutoTracking, self)
+	Settings:RegisterCallback("log_sort_order", self.UpdateAutoTracking, self)
 end
 
 function WarbandWorldQuest:RemoveQuestRewardsFromAllCharacters(quest)
@@ -152,11 +153,27 @@ function WarbandWorldQuest:GetFilteredQuests()
 
 	for quest, rewards in pairs(candidates) do
 		if rewards:PassRewardTypeFilters(mask) then
-			quests[quest.ID] = quest
+			table.insert(quests, quest)
 		end
 	end
 
+	table.sort(quests, WorldQuestList.CreateComparator(Settings:Get("log_sort_order")))
+
 	return quests
+end
+
+-- the objective tracker only shows 5 world quests
+local function GetNumFreeTrackerSlots(ignoredQuests)
+	local numTracked = 0
+
+	for i = 1, C_QuestLog.GetNumWorldQuestWatches() do
+		local questID = C_QuestLog.GetQuestIDForWorldQuestWatchIndex(i)
+		if questID and not ignoredQuests[questID] and not C_QuestLog.IsQuestFlaggedCompleted(questID) then
+			numTracked = numTracked + 1
+		end
+	end
+
+	return 5 - numTracked
 end
 
 function WarbandWorldQuest:UpdateAutoTracking()
@@ -167,15 +184,28 @@ function WarbandWorldQuest:UpdateAutoTracking()
 	self.character.autoTracked = self.character.autoTracked or {}
 
 	local autoTracked = self.character.autoTracked
-	local filteredQuests = Settings:Get("log_auto_track_filtered") and self:GetFilteredQuests() or {}
+	local questsToTrack = {}
 	local activeQuests = {}
+
+	if Settings:Get("log_auto_track_filtered") then
+		local numSlots = GetNumFreeTrackerSlots(autoTracked)
+
+		for _, quest in ipairs(self:GetFilteredQuests()) do
+			if numSlots <= 0 then
+				break
+			elseif quest.tracked == nil then
+				questsToTrack[quest.ID] = true
+				numSlots = numSlots - 1
+			end
+		end
+	end
 
 	for _, quest in ipairs(WorldQuestList:GetAllQuests()) do
 		activeQuests[quest.ID] = true
 
 		if quest.tracked == nil then
 			local isManual = C_QuestLog.GetQuestWatchType(quest.ID) == Enum.QuestWatchType.Manual
-			local shouldTrack = filteredQuests[quest.ID] ~= nil
+			local shouldTrack = questsToTrack[quest.ID] ~= nil
 
 			if shouldTrack and not isManual then
 				autoTracked[quest.ID] = true
@@ -196,57 +226,21 @@ function WarbandWorldQuest:UpdateAutoTracking()
 	end
 end
 
-local function GetPlayerContinentPosition()
-	local mapID = C_Map.GetBestMapForUnit("player")
-	local info = mapID and C_Map.GetMapInfo(mapID)
-
-	while info and info.mapType > Enum.UIMapType.Continent do
-		info = C_Map.GetMapInfo(info.parentMapID)
-	end
-
-	if info and info.mapType == Enum.UIMapType.Continent then
-		local position = C_Map.GetPlayerMapPosition(info.mapID, "player")
-		if position then
-			return info.mapID, position:GetXY()
-		end
-	end
-end
-
 function WarbandWorldQuest:TrackNextQuest()
 	if not Settings:Get("log_track_next_filtered") then
 		return
 	end
 
-	local numTracked = 0
-	for i = 1, C_QuestLog.GetNumWorldQuestWatches() do
-		local questID = C_QuestLog.GetQuestIDForWorldQuestWatchIndex(i)
-		if questID and not C_QuestLog.IsQuestFlaggedCompleted(questID) then
-			numTracked = numTracked + 1
-		end
-	end
-
-	-- the objective tracker only shows 5 world quests
-	if numTracked >= 5 then
+	if GetNumFreeTrackerSlots({}) <= 0 then
 		return
 	end
 
-	local mapID, x, y = GetPlayerContinentPosition()
-	local nextQuest, nextDistance
-
-	for questID, quest in pairs(self:GetFilteredQuests()) do
-		if quest.tracked ~= false and C_QuestLog.GetQuestWatchType(questID) == nil then
-			local position = mapID and quest:GetPositionOnMap(mapID) or {}
-			local distance = #position > 0 and (position[1] - x) ^ 2 + (position[2] - y) ^ 2 or math.huge
-
-			if nextQuest == nil or distance < nextDistance or (distance == nextDistance and quest.resetTime < nextQuest.resetTime) then
-				nextQuest, nextDistance = quest, distance
-			end
+	for _, quest in ipairs(self:GetFilteredQuests()) do
+		if quest.tracked ~= false and C_QuestLog.GetQuestWatchType(quest.ID) == nil then
+			Util:Debug("Tracking next quest", quest.ID, quest:GetName())
+			quest:SetTracked(true)
+			return
 		end
-	end
-
-	if nextQuest then
-		Util:Debug("Tracking next quest", nextQuest.ID, nextQuest:GetName())
-		nextQuest:SetTracked(true)
 	end
 end
 
@@ -364,7 +358,10 @@ do
 		local quest = WorldQuestList:GetQuest(questID)
 		local autoTracked = WarbandWorldQuest.character and WarbandWorldQuest.character.autoTracked or {}
 		if quest and (quest.tracked or autoTracked[questID] or quest:IsTracked()) then
-			C_Timer.After(1, GenerateClosure(WarbandWorldQuest.TrackNextQuest, WarbandWorldQuest))
+			C_Timer.After(1, function()
+				WarbandWorldQuest:UpdateAutoTracking()
+				WarbandWorldQuest:TrackNextQuest()
+			end)
 		end
 
 		WarbandWorldQuest:SetRewardsClaimed(questID)
