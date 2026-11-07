@@ -215,9 +215,30 @@ local function GetMapName(mapID)
 	return mapNames[mapID]
 end
 
+local mapOrder = {
+	[2444] = 1, -- Slayer's Rise
+	[2405] = 2, -- Voidstorm
+	[2413] = 3, -- Harandar
+	[2512] = 4, -- The Coiled Isle
+	[2393] = 5, -- Silvermoon City
+	[2605] = 5,
+	[2395] = 6, -- Eversong Woods
+	[2594] = 6,
+	[2437] = 7, -- Zul'Aman
+	[2585] = 7,
+	[2599] = 8, -- Val
+	[2600] = 9, -- Naigtal
+	[2623] = 9,
+}
+
 local function CompareMaps(x, y)
 	if x.map == y.map then
 		return
+	end
+
+	local xOrder, yOrder = mapOrder[x.map] or math.huge, mapOrder[y.map] or math.huge
+	if xOrder ~= yOrder then
+		return xOrder < yOrder
 	end
 
 	local xName, yName = GetMapName(x.map), GetMapName(y.map)
