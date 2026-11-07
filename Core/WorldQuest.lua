@@ -35,11 +35,22 @@ end
 
 function WorldQuest:UpdateResetTime()
 	local secondsLeft = C_TaskQuest.GetQuestTimeLeftSeconds(self.ID)
+	local estimated
+
+	-- locked Special Assignments have no time left, but end at one of the next two half-week boundaries
+	if secondsLeft == nil and self:IsPlayerLocked() then
+		local secondsToReset = C_DateAndTime.GetSecondsUntilWeeklyReset()
+
+		secondsLeft = secondsToReset > 302400 and secondsToReset or secondsToReset + 302400
+		estimated = true
+	end
+
 	if secondsLeft == nil then
 		return false
 	end
 
 	self.resetTime = GetServerTime() + secondsLeft
+	self.isResetTimeEstimated = estimated
 
 	return true
 end
@@ -200,6 +211,7 @@ local WorldQuestList = {
 	questsOnMap = {},
 	isScanSessionCompleted = nil,
 	childMapsCache = {},
+	specialAssignmentCache = {},
 }
 
 function WorldQuestList:Load(quests, resetStartTime)
@@ -315,7 +327,7 @@ function WorldQuestList:RemoveQuests(maps)
 	end
 end
 
-function WorldQuestList:PopulateQuestsToScan(continents)
+function WorldQuestList:PopulateQuestsToScan(continents, character)
 	self.pendingQuests = self.pendingQuests or {}
 
 	if next(self.pendingQuests) ~= nil then
@@ -342,6 +354,8 @@ function WorldQuestList:PopulateQuestsToScan(continents)
 	self.scannedMaps = mapsToScan
 	self:UpdateLockedQuests()
 
+	local mapsWithQuests = {}
+
 	for _, map in ipairs(mapsToScan) do
 		local quests = Util:Filter(C_TaskQuest.GetQuestsOnMap(map.mapID) or {}, function(info)
 			return info.mapID == map.mapID
@@ -349,16 +363,61 @@ function WorldQuestList:PopulateQuestsToScan(continents)
 				and C_QuestLog.GetQuestTagInfo(info.questID).worldQuestType ~= Enum.QuestTagType.Prey
 		end)
 
+		mapsWithQuests[map.mapID] = #quests > 0
+
 		for _, info in ipairs(quests) do
-			if self:GetQuest(info.questID) == nil then
+			local quest = self:GetQuest(info.questID)
+
+			if quest == nil then
 				self.pendingQuests[info.questID] = info
+			elseif quest.isResetTimeEstimated then
+				quest:UpdateResetTime()
 			end
 
 			WorldQuest:MarkPlayerEligibleForQuest(info.questID)
 		end
 	end
 
+	for name, info in pairs(WorldQuest.lockedNameCache) do
+		local questID = self:FindSpecialAssignment(name)
+
+		if questID and self:GetQuest(questID) == nil then
+			self.pendingQuests[questID] = { questID = questID, mapID = info.mapID, x = info.x, y = info.y }
+		end
+	end
+
+	-- an estimated reset time may be too late, so expire a Special Assignment once a character who saw it can no longer see it
+	for _, quest in ipairs(self.quests) do
+		local rewards = character:GetRewards(quest.ID)
+		local wasSeen = rewards and (rewards:IsLocked() or rewards:IsEligible())
+
+		if quest.isResetTimeEstimated and wasSeen and mapsWithQuests[quest.map] and not (quest:IsPlayerLocked() or quest:IsPlayerEligible() or quest:IsCompleted()) then
+			Util:Debug("Expiring Special Assignment", quest.ID, quest:GetName())
+			quest.resetTime = GetServerTime()
+		end
+	end
+
 	Util:Debug("Scanned maps", #mapsToScan, CountTable(self.pendingQuests))
+end
+
+-- locked Special Assignments are not on the map as quests, so look up their quest IDs by name
+function WorldQuestList:FindSpecialAssignment(name)
+	local cache = self.specialAssignmentCache
+
+	if cache[name] == nil and GetTime() - (self.specialAssignmentsScannedAt or 0) > 60 then
+		self.specialAssignmentsScannedAt = GetTime()
+
+		for questID = 80000, 105000 do
+			local tag = C_QuestLog.GetQuestTagInfo(questID)
+			local questName = tag and tag.worldQuestType == Enum.QuestTagType.Capstone and C_TaskQuest.GetQuestInfoByQuestID(questID)
+
+			if questName then
+				cache[questName] = questID
+			end
+		end
+	end
+
+	return cache[name]
 end
 
 function WorldQuestList:UpdateLockedQuests()
@@ -374,7 +433,8 @@ function WorldQuestList:UpdateLockedQuests()
 			local atlas = info and info.atlasName
 
 			if atlas and atlas:find("Capstone", 1, true) and atlas:find("Locked", 1, true) then
-				lockedNames[info.name] = true
+				local x, y = info.position:GetXY()
+				lockedNames[info.name] = { mapID = map.mapID, x = x, y = y }
 			end
 		end
 	end
@@ -397,7 +457,7 @@ function WorldQuestList:UpdateLockedQuests()
 	return changed
 end
 
-function WorldQuestList:Scan(continents, isNewSession)
+function WorldQuestList:Scan(continents, isNewSession, character)
 	if isNewSession then
 		self.isScanSessionCompleted = nil
 		RewardTypes:Reset()
@@ -408,7 +468,7 @@ function WorldQuestList:Scan(continents, isNewSession)
 		return
 	end
 
-	self:PopulateQuestsToScan(continents)
+	self:PopulateQuestsToScan(continents, character)
 
 	for questID, info in pairs(self.pendingQuests) do
 		if self:AddQuest(info) then

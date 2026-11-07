@@ -99,7 +99,7 @@ function WarbandWorldQuest:Update(isNewScanSession)
 		end
 	end
 
-	local changed = WorldQuestList:Scan(Settings:Get("maps_to_scan"), isNewScanSession)
+	local changed = WorldQuestList:Scan(Settings:Get("maps_to_scan"), isNewScanSession, self.character)
 	if changed then
 		local secondsToReset = select(2, WorldQuestList:NextResetQuests()) - GetServerTime() + 60
 

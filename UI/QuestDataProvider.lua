@@ -79,12 +79,12 @@ function WarbandWorldQuestDataRowMixin:IsFlaggedCompleted(questCompletedForPlaye
 	end
 end
 
--- locked characters have no reward data yet, so assume they get the same rewards as an unlocked character
+-- locked characters may have no reward data yet, so assume they get the same rewards as another character
 local function EstimateLockedRewards(rewards)
 	local template
 
 	for _, reward in pairs(rewards) do
-		if not reward:IsLocked() and reward:IsValid() then
+		if reward:IsValid() then
 			template = reward
 			break
 		end
@@ -101,7 +101,7 @@ local function EstimateLockedRewards(rewards)
 	local estimated = {}
 
 	for character, reward in pairs(rewards) do
-		estimated[character] = reward:IsLocked() and estimate or reward
+		estimated[character] = (reward:IsLocked() and not reward:IsValid()) and estimate or reward
 	end
 
 	return estimated

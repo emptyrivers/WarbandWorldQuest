@@ -12,18 +12,17 @@ function QuestRewards:Create(questID, ineligible, locked)
 	local o = {}
 	setmetatable(o, QuestRewards)
 
-	if locked then
-		o.locked = true
+	if ineligible and not locked then
 		return o
 	end
 
-	if ineligible then
-		return o
-	end
-
+	o.locked = locked or nil
 	o.specialAssignment = (C_QuestLog.GetQuestTagInfo(questID) or {}).worldQuestType == Enum.QuestTagType.Capstone or nil
 
-	if o:Update(questID) then
+	local completed = o:Update(questID)
+
+	-- nil means the reward data isn't loaded yet, so a locked quest is retried like any other
+	if completed or (locked and completed ~= nil) then
 		return o
 	end
 end
