@@ -54,6 +54,10 @@ function WarbandWorldQuestDataRowMixin:UpdateFocused()
 	local wasFocused = self.isActive or false
 	local rewards = self.dataProvider.filterUncollectedRewards and self.uncollectedRewards or self.totalRewards
 
+	if self.dataProvider.activeForCurrentCharacterOnly then
+		rewards = self.currentCharacterRewards
+	end
+
 	if not self.quest:IsInactive() and rewards:PassRewardTypeFilters(self.dataProvider.rewardFiltersMask) then
 		self.isActive = true
 	else
@@ -127,6 +131,16 @@ function WarbandWorldQuestDataRowMixin:UpdateRemainingRewards(claimed)
 		self.collectedRewards:AddFirstCompletionBonus(self.quest.currencies)
 	else
 		self.uncollectedRewards:AddFirstCompletionBonus(self.quest.currencies)
+	end
+
+	local currentRewards = self.rewards[self.dataProvider.character]
+	if currentRewards and currentRewards:IsEligible() and not currentRewards:IsClaimed() then
+		self.currentCharacterRewards = QuestRewards:Aggregate({ currentRewards })
+		if not (claimed or self.quest:IsFirstCompletionBonusClaimed()) then
+			self.currentCharacterRewards:AddFirstCompletionBonus(self.quest.currencies)
+		end
+	else
+		self.currentCharacterRewards = QuestRewards:Aggregate({})
 	end
 	self.progress.claimed = numClaimed
 end
@@ -282,6 +296,10 @@ end
 
 function WarbandWorldQuestDataProviderMixin:SetSortOrder(sortOrder)
 	self.sortOrder = sortOrder
+end
+
+function WarbandWorldQuestDataProviderMixin:SetActiveForCurrentCharacterOnly(enabled)
+	self.activeForCurrentCharacterOnly = enabled
 end
 
 function WarbandWorldQuestDataProviderMixin:SetShouldPopulateData(shouldPopulateData)

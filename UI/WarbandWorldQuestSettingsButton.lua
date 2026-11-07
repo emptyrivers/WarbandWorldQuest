@@ -103,6 +103,14 @@ function WarbandWorldQuestSettingsButtonMixin:Update(force)
 			}, L["settings_section_completed_tooltip"], MenuResponse.Refresh)
 
 			Settings:CreateCheckboxMenu(
+				"log_active_current_character_only",
+				logMenu,
+				L["settings_log_active_current_character_only_text"],
+				nil,
+				L["settings_log_active_current_character_only_tooltip"]
+			)
+
+			Settings:CreateCheckboxMenu(
 				"log_all_quests_shown",
 				logMenu,
 				L["settings_log_all_quests_shown_text"],

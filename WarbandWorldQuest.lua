@@ -441,6 +441,7 @@ do
 			["log_section_completed_shown"] = { enabled = true, option = "CURRENT" },
 			["log_all_quests_shown"] = false,
 			["log_sort_order"] = "TIME_LEFT",
+			["log_active_current_character_only"] = false,
 			["log_auto_track_filtered"] = false,
 			["log_track_next_filtered"] = false,
 			["log_time_left_shown"] = true,
