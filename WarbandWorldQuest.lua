@@ -249,23 +249,104 @@ function WarbandWorldQuest:TrackNextQuest()
 	end
 end
 
+-- Val and Naigtal are inside Voidstorm on the map, but don't count towards its Special Assignment
+local separateZones = {
+	[2599] = true, -- Val
+	[2600] = true, -- Naigtal
+	[2623] = true, -- Naigtal
+}
+
+local function IsInZone(quest, mapID)
+	return quest.map == mapID or (not separateZones[quest.map] and (C_Map.GetMapInfo(quest.map) or {}).parentMapID == mapID)
+end
+
+function WarbandWorldQuest:GetUnlockQuest(specialAssignment)
+	local unlockQuest
+
+	for _, quest in ipairs(WorldQuestList:GetAllQuests()) do
+		local rewards = self.character:GetRewards(quest.ID)
+		local isAvailable = quest:IsPlayerEligible() and not quest:IsCompleted() and not quest:IsInactive()
+
+		if isAvailable and IsInZone(quest, specialAssignment.map) and rewards and not rewards:IsClaimed() then
+			if quest.currencies and not quest:IsFirstCompletionBonusClaimed() then
+				return quest
+			end
+
+			unlockQuest = unlockQuest or quest
+		end
+	end
+
+	return unlockQuest
+end
+
+-- locked Special Assignments are unlocked by other world quests in their zone, so do those once the zone has no filtered quests left
+function WarbandWorldQuest:GetNextZenQuest()
+	local lockedRewards = {}
+
+	for _, quest in ipairs(WorldQuestList:GetAllQuests()) do
+		local rewards = quest:IsPlayerLocked() and self.character:GetRewards(quest.ID)
+		if rewards and not rewards:IsClaimed() then
+			rewards:GetRewardType()
+			lockedRewards[quest] = rewards
+		end
+	end
+
+	local filteredQuests = self:GetFilteredQuests()
+
+	local mask = QuestRewards.RewardTypes:GenerateMask(Settings:Get("reward_type_filters"))
+	local compare = WorldQuestList.CreateComparator("ZONE")
+	local nextQuest = filteredQuests[1]
+	local specialAssignments = {}
+
+	for quest, rewards in pairs(lockedRewards) do
+		if rewards:PassRewardTypeFilters(mask) then
+			table.insert(specialAssignments, quest)
+		end
+	end
+
+	table.sort(specialAssignments, compare)
+
+	for _, specialAssignment in ipairs(specialAssignments) do
+		if nextQuest and not compare(specialAssignment, nextQuest) then
+			break
+		end
+
+		local hasFilteredQuests = #Util:Filter(filteredQuests, function(quest)
+			return IsInZone(quest, specialAssignment.map)
+		end) > 0
+
+		local unlockQuest = not hasFilteredQuests and self:GetUnlockQuest(specialAssignment)
+		if unlockQuest then
+			return unlockQuest
+		end
+	end
+
+	return nextQuest
+end
+
 function WarbandWorldQuest:FocusNextQuest()
 	if not Settings:Get("zen_mode") then
 		return
 	end
 
-	for _, quest in ipairs(self:GetFilteredQuests()) do
-		if quest.tracked ~= false then
-			Util:Debug("Focusing next quest", quest.ID, quest:GetName())
+	local quest = self:GetNextZenQuest()
+	if quest == nil then
+		return
+	end
 
-			if C_QuestLog.GetQuestWatchType(quest.ID) ~= Enum.QuestWatchType.Manual then
-				QuestUtil.TrackWorldQuest(quest.ID, Enum.QuestWatchType.Automatic)
-			end
+	Util:Debug("Focusing next quest", quest.ID, quest:GetName())
 
-			C_SuperTrack.SetSuperTrackedQuestID(quest.ID)
-			self.zenQuestID = quest.ID
-			return
-		end
+	if C_QuestLog.GetQuestWatchType(quest.ID) ~= Enum.QuestWatchType.Manual then
+		QuestUtil.TrackWorldQuest(quest.ID, Enum.QuestWatchType.Automatic)
+	end
+
+	C_SuperTrack.SetSuperTrackedQuestID(quest.ID)
+	self.zenQuestID = quest.ID
+end
+
+function WarbandWorldQuest:RefocusZenQuest()
+	if C_SuperTrack.GetSuperTrackedQuestID() == self.zenQuestID then
+		self:FocusNextQuest()
 	end
 end
 
@@ -294,10 +375,12 @@ function WarbandWorldQuest:QueueLockedQuestsCheck()
 		if WorldQuestList:UpdateLockedQuests() then
 			Util:Debug("Locked Special Assignments changed")
 			self:Update(true)
+			self:RefocusZenQuest()
 
 			-- the unlocked quest may not be on the map yet when the lock disappears
 			C_Timer.After(5, function()
 				self:Update(true)
+				self:RefocusZenQuest()
 			end)
 		end
 	end)
