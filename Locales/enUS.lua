@@ -31,6 +31,8 @@ L["settings_pins_completed_quest_shown_text"] = "Completed Quests"
 L["settings_pins_completed_quest_shown_tooltip"] = "Show pins for completed quests, with a |A:common-icon-checkmark:15:15:0:0|a indicator"
 L["settings_log_all_quests_shown_text"] = "Show All Quests"
 L["settings_log_all_quests_shown_tooltip"] = "Display quests from all scanning maps|n|nIf disabled, only quests on current map are shown"
+L["settings_log_sort_order_text"] = "Sort By"
+L["settings_log_sort_order_tooltip"] = "Choose how quests are ordered within each section of the quest log"
 L["settings_log_auto_track_filtered_text"] = "Auto-Track Filtered Quests"
 L["settings_log_auto_track_filtered_tooltip"] =
 	"Track world quests whose rewards for the current character match the reward filters, and untrack them when they stop matching|n|nQuests you track or untrack yourself are never changed, and an untracked quest stays untracked until it expires"

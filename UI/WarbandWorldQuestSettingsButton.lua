@@ -110,6 +110,12 @@ function WarbandWorldQuestSettingsButtonMixin:Update(force)
 				L["settings_log_all_quests_shown_tooltip"]
 			)
 
+			Settings:CreateOptionsTree("log_sort_order", logMenu, L["settings_log_sort_order_text"], {
+				{ text = ZONE, value = "ZONE" },
+				{ text = CLOSES_IN, value = "TIME_LEFT" },
+				{ text = NAME, value = "NAME" },
+			}, L["settings_log_sort_order_tooltip"], MenuResponse.Refresh)
+
 			Settings:CreateCheckboxMenu(
 				"log_auto_track_filtered",
 				logMenu,

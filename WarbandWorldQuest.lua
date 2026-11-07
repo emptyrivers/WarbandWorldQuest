@@ -443,6 +443,7 @@ do
 			["log_is_default_tab"] = true,
 			["log_section_completed_shown"] = { enabled = true, option = "CURRENT" },
 			["log_all_quests_shown"] = false,
+			["log_sort_order"] = "TIME_LEFT",
 			["log_auto_track_filtered"] = false,
 			["log_track_next_filtered"] = false,
 			["log_time_left_shown"] = true,

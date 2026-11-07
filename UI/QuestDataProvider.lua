@@ -131,6 +131,64 @@ function WarbandWorldQuestDataRowMixin:UpdateRemainingRewards(claimed)
 	self.progress.claimed = numClaimed
 end
 
+local mapNames = {}
+
+local function GetMapName(mapID)
+	if mapNames[mapID] == nil then
+		mapNames[mapID] = (C_Map.GetMapInfo(mapID) or {}).name or ""
+	end
+
+	return mapNames[mapID]
+end
+
+local function CompareMaps(x, y)
+	if x.map == y.map then
+		return
+	end
+
+	local xName, yName = GetMapName(x.map), GetMapName(y.map)
+	if xName ~= yName then
+		return xName < yName
+	end
+
+	return x.map < y.map
+end
+
+-- quests expiring together get reset times a few seconds apart from when they were scanned
+local function CompareResetTimes(x, y)
+	local xHour, yHour = math.floor(x.resetTime / 3600), math.floor(y.resetTime / 3600)
+	if xHour ~= yHour then
+		return xHour < yHour
+	end
+end
+
+local function CompareNames(x, y)
+	if x:GetName() ~= y:GetName() then
+		return x:GetName() < y:GetName()
+	end
+end
+
+local sortOrders = {
+	ZONE = { CompareMaps, CompareResetTimes, CompareNames },
+	TIME_LEFT = { CompareResetTimes, CompareMaps, CompareNames },
+	NAME = { CompareNames, CompareMaps, CompareResetTimes },
+}
+
+local function CreateRowComparator(sortOrder)
+	local comparators = sortOrders[sortOrder] or sortOrders.TIME_LEFT
+
+	return function(x, y)
+		for _, compare in ipairs(comparators) do
+			local result = compare(x.quest, y.quest)
+			if result ~= nil then
+				return result
+			end
+		end
+
+		return x.quest.ID < y.quest.ID
+	end
+end
+
 local WarbandWorldQuestDataProviderMixin = CreateFromMixins(DataProviderMixin)
 
 function WarbandWorldQuestDataProviderMixin:OnLoad()
@@ -280,6 +338,10 @@ function WarbandWorldQuestDataProviderMixin:SetShouldShowAllQuests(enabled)
 	self.shouldShowAllQuests = enabled
 end
 
+function WarbandWorldQuestDataProviderMixin:SetSortOrder(sortOrder)
+	self.sortOrder = sortOrder
+end
+
 function WarbandWorldQuestDataProviderMixin:SetShouldPopulateData(shouldPopulateData)
 	self.shouldPopulateData = shouldPopulateData
 	Util:Debug("Queued PopulateCharactersData", shouldPopulateData)
@@ -341,9 +403,13 @@ function WarbandWorldQuestDataProviderMixin:Reset()
 		end
 	end
 
+	local comparator = CreateRowComparator(self.sortOrder)
+
 	wipe(self.collection)
 	for i, group in ipairs(groups) do
 		local isCollapsed = not group.uncollapsible and self.groupState[i]
+
+		table.sort(group.rows, comparator)
 
 		if not group.virtual then
 			table.insert(self.collection, { isHeader = true, isCollapsed = isCollapsed, name = group.name, index = i, numQuests = #group.rows })
